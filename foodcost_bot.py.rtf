@@ -1,0 +1,81 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import json\
+import os\
+import requests\
+import time\
+from datetime import datetime\
+\
+# CONFIGURAZIONE (Railway user\'e0 la variabile d'ambiente)\
+TOKEN = os.environ.get("TELEGRAM_TOKEN")\
+API_URL = f"https://api.telegram.org/bot\{TOKEN\}"\
+DATA_FILE = "foodcost_data.json"\
+\
+def load_data():\
+    if os.path.exists(DATA_FILE):\
+        try:\
+            with open(DATA_FILE, "r", encoding="utf-8") as f:\
+                return json.load(f)\
+        except:\
+            pass\
+    return \{"ingredienti": \{\}, "ricette": \{\}, "storico_prezzi": \{\}\}\
+\
+def save_data(data):\
+    with open(DATA_FILE, "w", encoding="utf-8") as f:\
+        json.dump(data, f, ensure_ascii=False, indent=2)\
+\
+# FUNZIONI API TELEGRAM\
+def send_message(chat_id, text, reply_markup=None):\
+    payload = \{"chat_id": chat_id, "text": text, "parse_mode": "HTML"\}\
+    if reply_markup: payload["reply_markup"] = json.dumps(reply_markup)\
+    try: requests.post(f"\{API_URL\}/sendMessage", json=payload)\
+    except Exception as e: print(f"Errore invio: \{e\}")\
+\
+def send_keyboard(chat_id, text, buttons):\
+    keyboard = \{"inline_keyboard": buttons\}\
+    send_message(chat_id, text, reply_markup=keyboard)\
+\
+# MENU PRINCIPALE\
+def menu_principale(chat_id):\
+    testo = "\uc0\u55356 \u57213 \u65039  <b>FoodCost Bot</b>\\nGestisci i tuoi piatti e monitora i margini."\
+    buttons = [\
+        [\{"text": "\uc0\u55358 \u56661  Ingredienti", "callback_data": "menu_ing"\}, \{"text": "\u55357 \u56523  Ricette", "callback_data": "menu_ric"\}],\
+        [\{"text": "\uc0\u55357 \u56522  Report", "callback_data": "menu_report"\}]\
+    ]\
+    send_keyboard(chat_id, testo, buttons)\
+\
+# LOOP PRINCIPALE\
+def main():\
+    print("\uc0\u55357 \u56960  Bot in avvio...")\
+    offset = 0\
+    while True:\
+        try:\
+            r = requests.get(f"\{API_URL\}/getUpdates", params=\{"offset": offset, "timeout": 20\})\
+            updates = r.json().get("result", [])\
+            for update in updates:\
+                offset = update["update_id"] + 1\
+                if "message" in update:\
+                    chat_id = update["message"]["chat"]["id"]\
+                    text = update["message"].get("text", "")\
+                    if text == "/start":\
+                        menu_principale(chat_id)\
+                    else:\
+                        send_message(chat_id, "Usa /start per il menu.")\
+                \
+                if "callback_query" in update:\
+                    cb = update["callback_query"]\
+                    chat_id = cb["message"]["chat"]["id"]\
+                    # Qui aggiungerai la logica dei tasti che abbiamo visto prima\
+                    send_message(chat_id, f"Hai premuto: \{cb['data']\}")\
+        \
+        except Exception as e:\
+            print(f"Errore: \{e\}")\
+            time.sleep(5)\
+\
+if __name__ == "__main__":\
+    main()}
